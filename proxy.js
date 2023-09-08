@@ -5,6 +5,7 @@
 var net = require('net');
 var url = require('url');
 var http = require('http');
+var https = require('https');
 var assert = require('assert');
 var debug = require('debug')('proxy');
 
@@ -204,25 +205,12 @@ function onrequest(req, res) {
 			agent = null;
 		}
 
-		if (null == parsed.port) {
-			// default the port number if not specified, for >= node v0.11.6...
-			// https://github.com/joyent/node/issues/6199
-			parsed.port = 80;
-		}
-
-		if ('http:' != parsed.protocol) {
-			// only "http://" is supported, "https://" should use CONNECT method
-			res.writeHead(400);
-			res.end('Only "http:" protocol prefix is supported\n');
-			return;
-		}
-
 		if (server.localAddress) {
 			parsed.localAddress = server.localAddress;
 		}
 
 		var gotResponse = false;
-		var proxyReq = http.request(parsed);
+		var proxyReq = ('http:' == parsed.protocol ? http : https).request(parsed);
 		debug.proxyRequest('%s %s HTTP/1.1 ', proxyReq.method, proxyReq.path);
 
 		proxyReq.on('response', function(proxyRes) {
