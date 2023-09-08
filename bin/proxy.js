@@ -17,7 +17,7 @@ args.option(
 )
 	.option(
 		'authenticate',
-		'"authenticate" command to run when the "Proxy-Authorization" header is sent',
+		'The username and password separated with a colon (user:pass)',
 		'',
 		String
 	)
@@ -34,8 +34,6 @@ const { port, authenticate } = flags;
 const http = require('http');
 const setup = require('../');
 const debug = require('debug')('proxy');
-const spawn = require('child_process').spawn;
-const basicAuthParser = require('basic-auth-parser');
 
 /**
  * Setup the HTTP "proxy server" instance.
@@ -75,46 +73,13 @@ if (authenticate) {
 			// "Proxy-Authorization" header was given
 			return fn(null, false);
 		}
-		var parsed = basicAuthParser(auth);
-		debug('parsed "Proxy-Authorization": %j', parsed);
-
-		// spawn a child process with the user-specified "authenticate" command
-		var i;
-		var env = {};
-		for (i in process.env) {
-			// inherit parent env variables
-			env[i] = process.env[i];
+		var parts = auth.split(' ');
+		if (parts[0] !== 'Basic') {
+			return fn(null, false);
 		}
-		// add "auth" related ENV variables
-		for (i in parsed) {
-			env['PROXY_AUTH_' + i.toUpperCase()] = parsed[i];
-		}
+		var decoded = new Buffer(parts[1], 'base64').toString('utf8');
 
-		var opts = {};
-		opts.stdio = ['ignore', 1, 2];
-		opts.env = env;
-
-		var args = ['-c', authenticate];
-		// TODO: add Windows support (use `cross-spawn`?)
-		var child = spawn('/bin/sh', args, opts);
-
-		function onerror(err) {
-			child.removeListener('exit', onexit);
-			fn(err);
-		}
-
-		function onexit(code, signal) {
-			debug(
-				'authentication child process "exit" event: %s %s',
-				code,
-				signal
-			);
-			child.removeListener('error', onerror);
-			fn(null, 0 == code);
-		}
-
-		child.once('error', onerror);
-		child.once('exit', onexit);
+		fn(null, decoded == authenticate);
 	};
 }
 
